@@ -1,44 +1,28 @@
-# UNIT_PROJECT
+# NAFAT - Network Authentication Feasibility Assessment Tool
 
+## Overview
+NAFAT is an interactive CLI-based security assessment tool designed for penetration testers and network security analysts. It evaluates the feasibility and time required for wordlist and brute-force attacks against target services. By measuring network latency (RTT) via TCP sockets and integrating protocol overheads, NAFAT provides dynamic time estimates and generates structured report files.
 
-## Based on what you’ve learned until now , create a project of your choosing (impress us with your imagination) . This project must at least satisfy the following minimum requirements :
+## Features & User Stories
 
-- Must be interactive on CLI.
-- Use your coding skills in Python accurately.
-- Organize Your Code into modules & (or packages)
-- Use git & Github to track changes in your code.
+As a Security Analyst / Penetration Tester, I should be able to:
+1. **Probe Target Ports:** Check if a service port is active and retrieve its Service Banner using raw TCP Sockets.
+2. **Measure Live Latency:** Measure real-time RTT (Round Trip Time) during TCP Handshakes for accurate speed estimation.
+3. **Assess Attack Feasibility:**
+   - **Wordlist Attacks:** Estimate execution time based on wordlist line count.
+   - **Pure Brute-Force Attacks:** Calculate total search space and estimated time based on character set complexity.
+4. **Export Assessment Reports:** Automatically generate structured text and JSON reports saved directly under the `reports/` directory.
 
-## Example Project :  An online Grocery Store :
+## Project Structure
+The project is organized into modular Python files:
+- `main.py`: Interactive CLI entry point with loop validations and clean exit handling.
+- `scanner.py`: Socket probing, RTT measurement, and banner grabbing.
+- `calculator.py`: Mathematical calculations for password space and time estimation.
+- `report.py`: Formatting and exporting assessment results to disk.
+- `config.py`: Centralized constants, timeout settings, and protocol overheads.
 
-#### Overview : An online store that sells fruits to customers. This online store has 2 main users. The customer and the manager of the store . Each one of them should be able to do the following tasks for the store to function properly . 
+## Usage & Commands
 
-### Features & User Stories
-#### As a customer I should be able to do the following :
-- Browse  Products . 
-- View the product info (summary, specs, price, quantity , etc.)
-- Search for Products.
-- Get recommendations for my next purchase based on my purchase history.
-- Add Products to the shopping cart .
-- Remove a product from the shopping cart.
-- List the products in my shopping cart. 
-- Continue to checkout . 
-- Fill in my address for delivery.
-- Get receipt of my purchases.
-- Check delivery status . 
-
-
-
-#### Usage :
- Explain to the user how to use your project . 
- for example:
- - type in search product_name to search for a product.
- - type in list_products to show all the products in the grocery.
- - type in show product_name to get information about this product.
- - type in buy product_name to buy the product . 
- - and so on...
-
-
-### For your project. Edit this README.md file to include your own project name,  overview, user stories, and usage. 
-
-### NOTE: before submitting the final project, please do the following command:
-`pip freeze > requirements.txt` to enable use to know & use the packages used in your project.
+1. **Run the tool:**
+   ```bash
+   python main.py
