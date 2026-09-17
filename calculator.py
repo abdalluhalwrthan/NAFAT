@@ -40,7 +40,7 @@ def calculate_feasibility(total_tries, speed=None, max_hours=config.MAX_HOURS):
         speed = config.DEFAULT_SPEED
 
     seconds = total_tries / speed
-    minutes = seconds / 60        # ← أضف
+    minutes = seconds / 60       
     hours = seconds / 3600
     days = hours / 24
     feasible = hours <= max_hours
@@ -48,8 +48,8 @@ def calculate_feasibility(total_tries, speed=None, max_hours=config.MAX_HOURS):
     return {
         "total_tries": total_tries,
         "speed_per_second": speed,
-        "seconds_needed": round(seconds, 2),   # ← أضف
-        "minutes_needed": round(minutes, 2),   # ← أضف
+        "seconds_needed": round(seconds, 2),   
+        "minutes_needed": round(minutes, 2),   
         "hours_needed": round(hours, 2),
         "days_needed": round(days, 2),
         "max_hours_allowed": max_hours,
