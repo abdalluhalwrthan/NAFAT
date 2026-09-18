@@ -52,7 +52,7 @@ Built-in modules used: `socket`, `time`, `json`, `os`, `datetime`, `ipaddress`, 
 ## How to Run
 
 ```bash
-python main.py
+python NAFAT.py
 ```
 
 ---
