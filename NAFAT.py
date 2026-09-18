@@ -1,4 +1,4 @@
-# main.py
+# NAFAT.py
 # Main execution controller for Network Authentication Feasibility Assessment Tool (NAFAT)
 
 import ipaddress

@@ -35,7 +35,6 @@ CHARSETS = {
 }
 
 # Default Wordlist Configurations
-# هذا يحسب المسار بناءً على مكان config.py نفسه
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_WORDLIST = os.path.join(BASE_DIR, "wordlists", "Pwdb_top-1000.txt")
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
