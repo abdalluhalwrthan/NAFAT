@@ -1,6 +1,5 @@
 # NAFAT.py
 # Main execution controller for Network Authentication Feasibility Assessment Tool (NAFAT)
-
 import ipaddress
 import sys
 import calculator
@@ -20,7 +19,7 @@ def validate_ip_list(ip_input_str):
             ipaddress.IPv4Address(item)
             ips.append(item)
         except ValueError:
-            return None  # If any IP is invalid, return None
+            return None  
     return ips if ips else None
 
 
@@ -85,6 +84,9 @@ def get_attack_settings():
         length = 6
 
     return {"mode": "Pure Brute-Force", "charset_key": charset_choice, "length": length}
+
+def parse_argguments():
+    '''Parses CLI arguments for non-interactive mode.'''
 
 
 def main():

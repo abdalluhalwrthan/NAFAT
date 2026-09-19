@@ -33,7 +33,7 @@ NAFAT/
 ├── scanner.py                  # Socket probing, RTT measurement, banner grabbing
 ├── calculator.py               # Password space math and feasibility calculations
 ├── report.py                   # Report formatting and file export (TXT + JSON)
-├── main.py                     # Interactive CLI entry point
+├── NAFAT.py                     # Interactive CLI entry point
 ├── README.md
 └── requirements.txt
 ```
