@@ -1,0 +1,17 @@
+======================================================================
+  NETWORK AUTHENTICATION FEASIBILITY ASSESSMENT REPORT (NAFAT)  
+======================================================================
+Generated On : 2026-09-21 19:16:43
+======================================================================
+
+[+] Target Endpoint      : 192.168.218.128:22
+    Port Status          : OPEN (Accessible)
+    Service Banner       : SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1
+    Attack Mode          : Wordlist (E:\NAFAT\wordlists\Pwdb_top-1000.txt)
+    Total Attempts       : 1,001
+    Measured Speed       : 9.56 req/sec
+    Recommended Speed    : 8.13 req/sec  (stay at or below this to avoid IDS detection)
+    Estimated Time       : 1.75 Minutes (0.03 Hours)
+    Feasibility          : YES - (Quick to crack)
+----------------------------------------------------------------------
+======================================================================

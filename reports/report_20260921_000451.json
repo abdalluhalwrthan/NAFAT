@@ -1,0 +1,62 @@
+{
+    "192.168.1.1:21": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 20,
+        "seconds_needed": 50.05,
+        "minutes_needed": 0.83,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.1.1:22": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 10,
+        "seconds_needed": 100.1,
+        "minutes_needed": 1.67,
+        "hours_needed": 0.03,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.1.1:23": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 15,
+        "seconds_needed": 66.73,
+        "minutes_needed": 1.11,
+        "hours_needed": 0.02,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.1.1:80": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 50,
+        "seconds_needed": 20.02,
+        "minutes_needed": 0.33,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.1.1:443": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 30,
+        "seconds_needed": 33.37,
+        "minutes_needed": 0.56,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    }
+}

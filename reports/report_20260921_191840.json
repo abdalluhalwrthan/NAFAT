@@ -1,0 +1,16 @@
+{
+    "127.0.0.1:135": {
+        "is_open": true,
+        "banner": "Banner Grab Timeout/Failed",
+        "rtt_ms": 22.24,
+        "attack_type": "Wordlist (E:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 23.67,
+        "recommended_attack_speed": 20.12,
+        "seconds_needed": 42.29,
+        "minutes_needed": 0.7,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    }
+}

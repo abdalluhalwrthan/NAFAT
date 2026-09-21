@@ -24,23 +24,23 @@ def build_report_text(data):
 
     for endpoint, metrics in data.items():
         is_open = metrics.get("is_open", False)
-        banner = metrics.get('banner', 'N/A')
-        attack_mode = metrics.get('attack_type', 'N/A')
+        banner = metrics.get("banner", "N/A")
+        attack_mode = metrics.get("attack_type", "N/A")
 
         if is_open:
             status_str = "OPEN (Accessible)"
-            
-            # Clear, simplified result explanations for open ports
-            if metrics.get("feasible"):
-                feasibility_str = "YES - (Quick to crack)"
-            else:
-                feasibility_str = "NO - (Takes too long to crack)"
+
+            feasibility_str = (
+                "YES - (Quick to crack)"
+                if metrics.get("feasible")
+                else "NO - (Takes too long to crack)"
+            )
 
             # Smart time formatting: Seconds -> Minutes -> Hours
-            secs = metrics.get('seconds_needed', 0)
-            mins = metrics.get('minutes_needed', 0)
-            hrs = metrics.get('hours_needed', 0)
-            dys = metrics.get('days_needed', 0)
+            secs = metrics.get("seconds_needed", 0)
+            mins = metrics.get("minutes_needed", 0)
+            hrs  = metrics.get("hours_needed", 0)
+            dys  = metrics.get("days_needed", 0)
 
             if hrs >= 1.0:
                 time_str = f"{hrs} Hours ({dys} Days)"
@@ -49,24 +49,33 @@ def build_report_text(data):
             else:
                 time_str = f"{secs} Seconds"
 
+            # Recommended attack speed (85% of measured speed — stays below IDS detection)
+            rec_speed = metrics.get("recommended_attack_speed")
+            rec_speed_str = (
+                f"{rec_speed} req/sec  (stay at or below this to avoid IDS detection)"
+                if rec_speed
+                else "N/A"
+            )
+
             details_block = [
-                f"\n[+] Target Endpoint : {endpoint}",
-                f"    Port Status     : {status_str}",
-                f"    Service Banner  : {banner}",
-                f"    Attack Mode     : {attack_mode}",
-                f"    Total Attempts  : {metrics.get('total_tries', 0):,}",
-                f"    Speed Rate      : {metrics.get('speed_per_second', 0)} req/sec",
-                f"    Estimated Time  : {time_str}",
-                f"    Feasibility     : {feasibility_str}",
+                f"\n[+] Target Endpoint      : {endpoint}",
+                f"    Port Status          : {status_str}",
+                f"    Service Banner       : {banner}",
+                f"    Attack Mode          : {attack_mode}",
+                f"    Total Attempts       : {metrics.get('total_tries', 0):,}",
+                f"    Measured Speed       : {metrics.get('speed_per_second', 0)} req/sec",
+                f"    Recommended Speed    : {rec_speed_str}",
+                f"    Estimated Time       : {time_str}",
+                f"    Feasibility          : {feasibility_str}",
                 "-" * 70,
             ]
         else:
             status_str = "CLOSED / UNREACHABLE"
             details_block = [
-                f"\n[+] Target Endpoint : {endpoint}",
-                f"    Port Status     : {status_str}",
-                f"    Service Banner  : {banner}",
-                f"    Security Status : SECURE (Port is closed, no exposure)",
+                f"\n[+] Target Endpoint      : {endpoint}",
+                f"    Port Status          : {status_str}",
+                f"    Service Banner       : {banner}",
+                f"    Security Status      : SECURE (Port is closed, no exposure)",
                 "-" * 70,
             ]
 
@@ -84,17 +93,12 @@ def save_reports(data, report_text):
     os.makedirs(config.REPORTS_DIR, exist_ok=True)
 
     filename_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    txt_filename = f"report_{filename_timestamp}.txt"
-    json_filename = f"report_{filename_timestamp}.json"
+    txt_path  = os.path.join(config.REPORTS_DIR, f"report_{filename_timestamp}.txt")
+    json_path = os.path.join(config.REPORTS_DIR, f"report_{filename_timestamp}.json")
 
-    txt_path = os.path.join(config.REPORTS_DIR, txt_filename)
-    json_path = os.path.join(config.REPORTS_DIR, json_filename)
-
-    # Save formatted TXT report
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(report_text)
 
-    # Save structured JSON data
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 

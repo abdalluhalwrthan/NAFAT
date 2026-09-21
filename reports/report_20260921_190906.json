@@ -1,0 +1,44 @@
+{
+    "192.168.218.128:21": {
+        "is_open": true,
+        "banner": "220 (vsFTPd 2.3.4)",
+        "rtt_ms": 1.2,
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 32.05,
+        "recommended_attack_speed": 27.24,
+        "seconds_needed": 31.23,
+        "minutes_needed": 0.52,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.218.128:22": {
+        "is_open": true,
+        "banner": "SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1",
+        "rtt_ms": 11.01,
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 10.99,
+        "recommended_attack_speed": 9.34,
+        "seconds_needed": 91.08,
+        "minutes_needed": 1.52,
+        "hours_needed": 0.03,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "192.168.218.128:23": {
+        "is_open": true,
+        "banner": "\u0018 #'",
+        "rtt_ms": 1.02,
+        "attack_type": "Wordlist (e:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 47.58,
+        "recommended_attack_speed": 40.44,
+        "seconds_needed": 21.04,
+        "minutes_needed": 0.35,
+        "hours_needed": 0.01,
+        "days_needed": 0.0,
+        "feasible": true
+    }
+}

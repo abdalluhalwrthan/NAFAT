@@ -1,0 +1,17 @@
+======================================================================
+  NETWORK AUTHENTICATION FEASIBILITY ASSESSMENT REPORT (NAFAT)  
+======================================================================
+Generated On : 2026-09-21 19:03:41
+======================================================================
+
+[+] Target Endpoint      : 192.168.100.2:139
+    Port Status          : OPEN (Accessible)
+    Service Banner       : Banner Grab Timeout/Failed
+    Attack Mode          : Wordlist (e:\NAFAT\wordlists\Pwdb_top-1000.txt)
+    Total Attempts       : 1,001
+    Measured Speed       : 27.81 req/sec
+    Recommended Speed    : 23.64 req/sec  (stay at or below this to avoid IDS detection)
+    Estimated Time       : 35.99 Seconds
+    Feasibility          : YES - (Quick to crack)
+----------------------------------------------------------------------
+======================================================================

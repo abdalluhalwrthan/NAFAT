@@ -1,0 +1,16 @@
+{
+    "192.168.218.128:22": {
+        "is_open": true,
+        "banner": "SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1",
+        "rtt_ms": 24.64,
+        "attack_type": "Wordlist (E:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 1001,
+        "speed_per_second": 9.56,
+        "recommended_attack_speed": 8.13,
+        "seconds_needed": 104.71,
+        "minutes_needed": 1.75,
+        "hours_needed": 0.03,
+        "days_needed": 0.0,
+        "feasible": true
+    }
+}
