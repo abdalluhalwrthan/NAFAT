@@ -38,7 +38,7 @@ NAFAT is a CLI-based **Dual-Use** security assessment framework for both Red and
 ```
 NAFAT/
 ├── wordlists/
-│   └── Pwdb_top-1000.txt   # Default wordlist (1,000 common passwords)
+│   └── Pwdb_top-1000.txt   # Default wordlist (1,000 common passwords) You Can Provide Any Wordlist U want
 ├── reports/                # Auto-created — stores generated reports
 ├── config.py               # Protocol overhead constants and path settings
 ├── scanner.py              # TCP probing, RTT measurement, banner grabbing
