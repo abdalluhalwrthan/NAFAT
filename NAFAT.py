@@ -1,6 +1,6 @@
 # NAFAT.py
 # Main execution controller for Network Authentication Feasibility Assessment Tool (NAFAT)
-
+import socket
 import ipaddress
 import sys
 import calculator
@@ -19,8 +19,17 @@ def validate_ip_list(ip_input_str):
         try:
             ipaddress.IPv4Address(item)
             ips.append(item)
+            continue
         except ValueError:
+            pass
+
+        try:
+            resolved_ip = socket.gethostbyname(item)
+            print(f"[+]'{item}' -> {resolved_ip}")
+            ips.append(resolved_ip)
+        except socket.gaierror:
             return None
+
     return ips if ips else None
 
 
