@@ -28,5 +28,5 @@ CHARSETS = {
 
 
 BASE_DIR         = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_WORDLIST = os.path.join(BASE_DIR, "wordlists", "Pwdb_top-1000.txt")
+DEFAULT_WORDLIST = os.path.join(BASE_DIR, "wordlists", "AnyWordList.txt")
 REPORTS_DIR      = os.path.join(BASE_DIR, "reports")

@@ -1,0 +1,56 @@
+{
+    "45.33.32.156:21": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "N/A",
+        "total_tries": null,
+        "speed_per_second": null,
+        "recommended_attack_speed": null,
+        "seconds_needed": null,
+        "minutes_needed": null,
+        "hours_needed": null,
+        "days_needed": null,
+        "feasible": null
+    },
+    "45.33.32.156:22": {
+        "is_open": true,
+        "banner": "SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.13",
+        "rtt_ms": 215.75,
+        "attack_type": "Wordlist (E:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 0,
+        "speed_per_second": 3.38,
+        "recommended_attack_speed": 2.87,
+        "seconds_needed": 0.0,
+        "minutes_needed": 0.0,
+        "hours_needed": 0.0,
+        "days_needed": 0.0,
+        "feasible": true
+    },
+    "45.33.32.156:23": {
+        "is_open": false,
+        "banner": "Service Unreachable",
+        "attack_type": "N/A",
+        "total_tries": null,
+        "speed_per_second": null,
+        "recommended_attack_speed": null,
+        "seconds_needed": null,
+        "minutes_needed": null,
+        "hours_needed": null,
+        "days_needed": null,
+        "feasible": null
+    },
+    "45.33.32.156:80": {
+        "is_open": true,
+        "banner": "HTTP/1.1 200 OK",
+        "rtt_ms": 214.37,
+        "attack_type": "Wordlist (E:\\NAFAT\\wordlists\\Pwdb_top-1000.txt)",
+        "total_tries": 0,
+        "speed_per_second": 4.46,
+        "recommended_attack_speed": 3.79,
+        "seconds_needed": 0.0,
+        "minutes_needed": 0.0,
+        "hours_needed": 0.0,
+        "days_needed": 0.0,
+        "feasible": true
+    }
+}

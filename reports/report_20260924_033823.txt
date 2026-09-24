@@ -1,0 +1,40 @@
+======================================================================
+  NETWORK AUTHENTICATION FEASIBILITY ASSESSMENT REPORT (NAFAT)  
+======================================================================
+Generated On : 2026-09-24 03:38:23
+======================================================================
+
+[+] Target Endpoint      : 45.33.32.156:21
+    Port Status          : CLOSED / UNREACHABLE
+    Service Banner       : Service Unreachable
+    Security Status      : SECURE (Port is closed, no exposure)
+----------------------------------------------------------------------
+
+[+] Target Endpoint      : 45.33.32.156:22
+    Port Status          : OPEN (Accessible)
+    Service Banner       : SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.13
+    Attack Mode          : Wordlist (E:\NAFAT\wordlists\Pwdb_top-1000.txt)
+    Total Attempts       : 0
+    Measured Speed       : 3.38 req/sec
+    Recommended Speed    : 2.87 req/sec  (stay at or below this to avoid IDS detection)
+    Estimated Time       : 0.0 Seconds
+    Feasibility          : YES - (Quick to crack)
+----------------------------------------------------------------------
+
+[+] Target Endpoint      : 45.33.32.156:23
+    Port Status          : CLOSED / UNREACHABLE
+    Service Banner       : Service Unreachable
+    Security Status      : SECURE (Port is closed, no exposure)
+----------------------------------------------------------------------
+
+[+] Target Endpoint      : 45.33.32.156:80
+    Port Status          : OPEN (Accessible)
+    Service Banner       : HTTP/1.1 200 OK
+    Attack Mode          : Wordlist (E:\NAFAT\wordlists\Pwdb_top-1000.txt)
+    Total Attempts       : 0
+    Measured Speed       : 4.46 req/sec
+    Recommended Speed    : 3.79 req/sec  (stay at or below this to avoid IDS detection)
+    Estimated Time       : 0.0 Seconds
+    Feasibility          : YES - (Quick to crack)
+----------------------------------------------------------------------
+======================================================================
