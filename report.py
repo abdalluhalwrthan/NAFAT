@@ -9,7 +9,7 @@ import config
 
 def build_report_text(data):
     """
-    Generates a clean, formatted text string for console output and file storage.
+    Generates a clean, dual-use security audit text string for console output and file storage.
     Expects data dictionary keyed by target endpoint (e.g. '192.168.1.10:21').
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -25,57 +25,67 @@ def build_report_text(data):
     for endpoint, metrics in data.items():
         is_open = metrics.get("is_open", False)
         banner = metrics.get("banner", "N/A")
-        attack_mode = metrics.get("attack_type", "N/A")
+        audit_mode = metrics.get("audit_mode", "N/A")
 
         if is_open:
             status_str = "OPEN (Accessible)"
 
-            feasibility_str = (
-                "YES - (Quick to crack)"
-                if metrics.get("feasible")
-                else "NO - (Takes too long to crack)"
-            )
-
-            # Smart time formatting: Seconds -> Minutes -> Hours
-            secs = metrics.get("seconds_needed", 0)
-            mins = metrics.get("minutes_needed", 0)
-            hrs  = metrics.get("hours_needed", 0)
-            dys  = metrics.get("days_needed", 0)
-
-            if hrs >= 1.0:
-                time_str = f"{hrs} Hours ({dys} Days)"
-            elif mins >= 1.0:
-                time_str = f"{mins} Minutes ({hrs} Hours)"
+            feasible_val = metrics.get("feasible")
+            if feasible_val is True:
+                resilience_str = "HIGH RISK (Low Resilience - Rapid Feasibility)"
+            elif feasible_val is False:
+                resilience_str = "SECURE / RESILIENT (Long Exposure Window Required)"
             else:
-                time_str = f"{secs} Seconds"
+                resilience_str = "DIAGNOSTIC (Baseline Latency Analysis Only)"
 
-            # Recommended attack speed (85% of measured speed — stays below IDS detection)
+            secs = metrics.get("seconds_needed")
+            mins = metrics.get("minutes_needed")
+            hrs  = metrics.get("hours_needed")
+            dys  = metrics.get("days_needed")
+
+            if hrs is not None and hrs >= 1.0:
+                time_str = f"{hrs} Hours ({dys} Days)"
+            elif mins is not None and mins >= 1.0:
+                time_str = f"{mins} Minutes ({hrs} Hours)"
+            elif secs is not None:
+                time_str = f"{secs} Seconds"
+            else:
+                time_str = "N/A (Diagnostic Mode)"
+
             rec_speed = metrics.get("recommended_attack_speed")
+            variance_ms = metrics.get("rtt_std_ms", 0)
             rec_speed_str = (
-                f"{rec_speed} req/sec  (stay at or below this to avoid IDS detection)"
+                f"{rec_speed} req/sec  ({variance_ms}ms RTT variance)"
                 if rec_speed
                 else "N/A"
             )
 
+            total_tries = metrics.get("total_tries")
+            tries_str = f"{total_tries:,}" if total_tries is not None else "N/A (Diagnostic)"
+
+            mean_rtt = metrics.get("rtt_ms")
+            rtt_display_str = f"{mean_rtt} ms (Jitter: ±{variance_ms} ms)" if mean_rtt is not None else "N/A"
+
             details_block = [
                 f"\n[+] Target Endpoint      : {endpoint}",
                 f"    Port Status          : {status_str}",
                 f"    Service Banner       : {banner}",
-                f"    Attack Mode          : {attack_mode}",
-                f"    Total Attempts       : {metrics.get('total_tries', 0):,}",
-                f"    Measured Speed       : {metrics.get('speed_per_second', 0)} req/sec",
-                f"    Recommended Speed    : {rec_speed_str}",
-                f"    Estimated Time       : {time_str}",
-                f"    Feasibility          : {feasibility_str}",
+                f"    Latency Baseline     : {rtt_display_str}",
+                f"    Audit Mode           : {audit_mode}",
+                f"    Evaluated Space      : {tries_str}",
+                f"    Throughput Capacity  : {metrics.get('speed_per_second', 0)} req/sec",
+                f"    Safe Rate Threshold  : {rec_speed_str}",
+                f"    Exposure Duration    : {time_str}",
+                f"    Security Resilience  : {resilience_str}",
                 "-" * 70,
             ]
         else:
-            status_str = "CLOSED / UNREACHABLE"
+            status_str = "CLOSED / FILTERED"
             details_block = [
                 f"\n[+] Target Endpoint      : {endpoint}",
                 f"    Port Status          : {status_str}",
                 f"    Service Banner       : {banner}",
-                f"    Security Status      : SECURE (Port is closed, no exposure)",
+                f"    Security Status      : SECURE (Endpoint not exposed)",
                 "-" * 70,
             ]
 

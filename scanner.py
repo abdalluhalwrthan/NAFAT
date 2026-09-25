@@ -3,6 +3,7 @@
 
 import socket
 import time
+import statistics
 import config
 
 
@@ -20,50 +21,66 @@ def grab_banner(s, target_ip, port):
         return "Banner Grab Timeout/Failed"
 
 
-def scan_target(target_ip, port):
+def scan_target(target_ip, port, sample_size=10):
     """
-    Probes target port, measures TCP handshake RTT, calculates dynamic guess speed
-    using heuristic protocol overheads, and extracts the service banner.
-
-    Returns estimated_speed = None if port is closed (no RTT measured).
+    Probes target port multiple times to measure precise RTT statistics (Mean & Std Dev).
+    Guarantees mathematically that safe recommended speed is always <= measured speed.
     """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(config.CONNECTION_TIMEOUT)
+    rtt_list = []
+    banner = "No Banner Received"
+    is_open = False
 
-        # Measure TCP Handshake RTT precisely
-        start_time = time.perf_counter()
-        s.connect((target_ip, port))
-        end_time = time.perf_counter()
+    for i in range(sample_size):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(config.CONNECTION_TIMEOUT)
 
-        rtt = end_time - start_time  # RTT in seconds
+            start_time = time.perf_counter()
+            s.connect((target_ip, port))
+            end_time = time.perf_counter()
 
-        # Calculate dynamic speed: 1 / (RTT + Protocol Overhead)
-        overhead = config.HEURISTIC_PROTOCOL_OVERHEAD.get(port, config.DEFAULT_OVERHEAD)
-        total_time_per_request = rtt + overhead
+            rtt = end_time - start_time
+            rtt_list.append(rtt)
+            is_open = True
 
-        # Prevents ZeroDivisionError
-        if total_time_per_request > 0:
-            estimated_speed = round(1.0 / total_time_per_request, 2)
-        else:
-            estimated_speed = None
+            # Grab banner on the first successful probe
+            if i == 0:
+                banner = grab_banner(s, target_ip, port)
 
-        # Retrieve banner before closing socket
-        banner = grab_banner(s, target_ip, port)
-        s.close()
+            s.close()
+            time.sleep(0.05)  # Lightweight interval to prevent socket congestion
+        except (socket.timeout, ConnectionRefusedError, socket.gaierror, OSError):
+            continue
 
+    # Require at least 2 successful probes for valid statistical analysis
+    if not is_open or len(rtt_list) < 2:
         return {
-            "is_open": True,
-            "rtt_ms": round(rtt * 1000, 2),
-            "estimated_speed": estimated_speed,
-            "banner": banner,
-        }
-
-    except (socket.timeout, ConnectionRefusedError, socket.gaierror, OSError):
-        # Port is closed or unreachable — no speed can be estimated
-        return {
-            "is_open": False,
+            "is_open": is_open,
             "rtt_ms": None,
+            "rtt_std_ms": None,
             "estimated_speed": None,
-            "banner": "Service Unreachable",
+            "safe_speed_std": None,
+            "banner": banner if is_open else "Service Unreachable",
         }
+
+    # Statistical calculation on the exact same dataset
+    mean_rtt = sum(rtt_list) / len(rtt_list)
+    std_rtt = statistics.stdev(rtt_list)
+    overhead = config.HEURISTIC_PROTOCOL_OVERHEAD.get(port, config.DEFAULT_OVERHEAD)
+
+    # 1. Base measured speed based on mean RTT
+    base_time = mean_rtt + overhead
+    estimated_speed = round(1.0 / base_time, 2) if base_time > 0 else None
+
+    # 2. Dynamic safe speed: mean + std dev margin (Guaranteed <= estimated_speed)
+    safe_time = mean_rtt + std_rtt + overhead
+    safe_speed_std = round(1.0 / safe_time, 2) if safe_time > 0 else estimated_speed
+
+    return {
+        "is_open": True,
+        "rtt_ms": round(mean_rtt * 1000, 2),
+        "rtt_std_ms": round(std_rtt * 1000, 2),
+        "estimated_speed": estimated_speed,
+        "safe_speed_std": safe_speed_std,
+        "banner": banner,
+    }
