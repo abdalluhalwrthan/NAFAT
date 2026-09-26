@@ -94,30 +94,36 @@ Wordlist path [Enter for default '...wordlists/Pwdb_top-1000.txt']:
 ======================================================================
   NETWORK AUTHENTICATION FEASIBILITY ASSESSMENT REPORT (NAFAT)
 ======================================================================
-Generated On : 2026-09-21 22:59:30
+Generated On : 2026-09-27 00:10:27
 ======================================================================
 
 [+] Target Endpoint      : 45.33.32.156:22
     Port Status          : OPEN (Accessible)
     Service Banner       : SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.13
-    Attack Mode          : Wordlist (wordlists/Pwdb_top-1000.txt)
-    Total Attempts       : 1,001
-    Measured Speed       : 3.37 req/sec
-    Recommended Speed    : 2.86 req/sec  (stay at or below this to avoid IDS detection)
-    Estimated Time       : 4.95 Minutes (0.08 Hours)
-    Feasibility          : YES - (Quick to crack)
+    Latency Baseline     : 230.19 ms (Jitter: ±16.18 ms)
+    Audit Mode           : Dictionary Audit (E:\NAFAT\wordlists\AnyWordList.txt)
+    Evaluated Space      : 1,001
+    Throughput Capacity  : 3.22 req/sec
+    Safe Rate Threshold  : 3.06 req/sec  (16.18ms RTT variance)
+    Exposure Duration    : 5.18 Minutes (0.09 Hours)
+    Security Resilience  : HIGH RISK (Low Resilience - Rapid Feasibility)
 ----------------------------------------------------------------------
 
 [+] Target Endpoint      : 45.33.32.156:80
     Port Status          : OPEN (Accessible)
     Service Banner       : HTTP/1.1 200 OK
-    Attack Mode          : Wordlist (wordlists/Pwdb_top-1000.txt)
-    Total Attempts       : 1,001
-    Measured Speed       : 4.38 req/sec
-    Recommended Speed    : 3.72 req/sec  (stay at or below this to avoid IDS detection)
-    Estimated Time       : 3.81 Minutes (0.06 Hours)
-    Feasibility          : YES - (Quick to crack)
+    Latency Baseline     : 248.96 ms (Jitter: ±12.99 ms)
+    Audit Mode           : Dictionary Audit (E:\NAFAT\wordlists\AnyWordList.txt)
+    Evaluated Space      : 1,001
+    Throughput Capacity  : 3.86 req/sec
+    Safe Rate Threshold  : 3.68 req/sec  (12.99ms RTT variance)
+    Exposure Duration    : 4.32 Minutes (0.07 Hours)
+    Security Resilience  : HIGH RISK (Low Resilience - Rapid Feasibility)
 ----------------------------------------------------------------------
+======================================================================
+
+[+] TXT Report saved: E:\NAFAT\reports\report_20260927_001027.txt
+[+] JSON Report saved: E:\NAFAT\reports\report_20260927_001027.json
 ======================================================================
 
 [+] TXT Report saved: reports/report_20260921_225930.txt
