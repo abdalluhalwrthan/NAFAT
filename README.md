@@ -126,8 +126,6 @@ Generated On : 2026-09-27 00:10:27
 [+] JSON Report saved: E:\NAFAT\reports\report_20260927_001027.json
 ======================================================================
 
-[+] TXT Report saved: reports/report_20260921_225930.txt
-[+] JSON Report saved: reports/report_20260921_225930.json
 ```
 
 ---
