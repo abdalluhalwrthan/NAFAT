@@ -1,5 +1,16 @@
 # report.py
 # Compact, aligned, terminal-style TXT report formatting and collision-safe TXT/JSON persistence.
+#
+# Report layout (per endpoint), in reading order:
+#   [+] TARGET                 - what was tested
+#   [+] SUMMARY                - the one number to trust + confidence + budget verdict
+#   [+] PRIMARY ESTIMATE       - the validated full-workload model (Attempt Cost, Service Speed, Full Auth Time)
+#   [+] SECONDARY ESTIMATE     - early-sample extrapolation only; explicitly marked unvalidated
+#   [+] NETWORK CONDITIONS     - raw measured inputs (TCP latency, handshake, auth timing, reuse)
+#   [+] ASSUMPTIONS & LIMITATIONS - every caveat, warning, and unverified assumption, collected in one place
+#
+# No calculation logic changes here - every value below is read from the same metrics dict
+# produced by calculator.py. This file only decides which section each value is printed in.
 
 import json
 import math
@@ -313,11 +324,73 @@ def _network_warning(metrics, auth_dict=None):
     return "; ".join(warnings) if warnings else None
 
 
+def _build_network_conditions_lines(metrics, status_str, proto_ms, is_ssh_handshake, auth_dict,
+                                     auth_ms, rej_count, proto_label, auth_attempted,
+                                     unsupported_proto, auth_fail_reason, is_mode1, tcp_rate, setup_rate):
+    """
+    Build the [+] NETWORK CONDITIONS block: the raw measured inputs the estimates are built
+    from (TCP latency, protocol setup, auth timing, reuse limit, variability). This is
+    supporting detail, not the headline - it is placed after the estimate sections.
+    """
+    lines = ["", "[+] NETWORK CONDITIONS"]
+    mean_ms = metrics.get("tcp_connect_mean_ms")
+    if mean_ms is not None and status_str == "OPEN":
+        lines.append(f"    TCP Latency    : {mean_ms:.2f} ms")
+        if proto_ms is not None:
+            setup_tag = "SSH Handshake" if is_ssh_handshake else "Post-TCP Greeting"
+            lines.append(f"    Protocol Setup : {proto_ms:.2f} ms ({setup_tag})")
+        if auth_dict is not None and auth_dict.get("host_key_status"):
+            hk = auth_dict.get("host_key_status")
+            if hk == "verified":
+                lines.append("    Host Key       : VERIFIED (known_hosts)")
+            elif hk == "unverified_lab_opt_in":
+                lines.append("    Host Key       : UNVERIFIED (Lab Opt-In --allow-untrusted-host-key)")
+            elif hk == "unverified_rejected":
+                lines.append("    Host Key       : REJECTED (Unverified Host Key)")
+        if auth_ms is not None:
+            user_ms = auth_dict.get("user_cmd_mean_ms")
+            pass_ms = auth_dict.get("pass_cmd_mean_ms")
+            att_n = auth_dict.get("probe_attempt_count", rej_count)
+            if user_ms is not None and pass_ms is not None:
+                lines.append(
+                    f"    Failed Auth    : {auth_ms:.2f} ms (USER: {user_ms:.2f} ms, PASS: {pass_ms:.2f} ms; {rej_count}/{att_n} probes)"
+                )
+            elif proto_label == "SSH":
+                lines.append(f"    Failed Auth    : {auth_ms:.2f} ms (SSH userauth; {rej_count}/{att_n} probes)")
+            elif proto_label == "FTP":
+                lines.append(f"    Failed Auth    : {auth_ms:.2f} ms (FTP USER/PASS; {rej_count}/{att_n} probes)")
+            else:
+                stage_tag = f"{proto_label} auth" if proto_label != "UNKNOWN" else "Unknown protocol auth"
+                lines.append(f"    Failed Auth    : {auth_ms:.2f} ms ({stage_tag}; {rej_count}/{att_n} probes)")
+            k_exact = auth_dict.get("observed_server_reuse_limit")
+            k_lb = auth_dict.get("observed_server_reuse_lower_bound")
+            if k_exact is not None:
+                lines.append(f"    Server Reuse   : {k_exact} attempts/conn (Confirmed Limit)")
+            elif k_lb is not None:
+                lines.append(f"    Server Reuse   : At least {k_lb} attempts/conn (Lower Bound)")
+        elif auth_attempted or unsupported_proto:
+            lines.append(f"    Failed Auth    : UNAVAILABLE ({_single_line(auth_fail_reason)})")
+        lines.append(f"    Variability    : {_format_variability(metrics, auth_dict=auth_dict if auth_ms is not None else None)}")
+        if is_mode1 and tcp_rate is not None:
+            lines.append(f"    Estimated Rate : {tcp_rate:.2f} TCP connections/sec")
+            if setup_rate is not None:
+                setup_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
+                lines.append(f"    Setup Rate     : {setup_rate:.2f} sessions/sec (TCP + {setup_tag})")
+    else:
+        lines.append("    TCP Latency    : Unavailable")
+    return lines
+
+
 def build_report_text(data):
     """
     Generate a compact, aligned, terminal-style TXT report for CLI display and file storage.
-    Calculates and displays planning metrics directly at the suggested service speed (-t N)
-    without cluttering the report with single-threaded (-t 1) assumptions.
+
+    Each endpoint is rendered in tiers so the reader can stop reading as soon as they have
+    what they need: TARGET (what was tested) -> SUMMARY (the one number to trust) ->
+    PRIMARY ESTIMATE (the validated full-workload model) -> SECONDARY ESTIMATE (early-sample
+    extrapolation, explicitly marked unvalidated) -> NETWORK CONDITIONS (raw measured inputs,
+    for anyone auditing the numbers) -> ASSUMPTIONS & LIMITATIONS (every caveat in one place).
+    No value's precision or calculation changes - only where it is printed.
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sep_eq = "=" * 64
@@ -409,11 +482,10 @@ def build_report_text(data):
                 full_auth_protocols.append(footer_proto)
 
         setup_rate = metrics.get("protocol_setup_rate_per_sec")
-        suggested_seq_rate = metrics.get("suggested_sequential_rate_per_sec")
         suggested_tasks = metrics.get("suggested_parallel_tasks")
-        rate_unit = "sessions/sec" if proto_ms is not None else "connections/sec"
+        tcp_rate = metrics.get("network_model_rate_tcp_only_per_sec")
 
-        # 1. TARGET section
+        # ---- [+] TARGET -------------------------------------------------
         lines.extend([
             "",
             "[+] TARGET",
@@ -426,157 +498,166 @@ def build_report_text(data):
         elif active_proto and (metrics.get("protocol_capabilities") or auth_attempted):
             lines.append(f"    Protocol       : {_single_line(proto_label)}")
 
-        # 2. NETWORK CONDITIONS section
-        lines.append("")
-        lines.append("[+] NETWORK CONDITIONS")
-        mean_ms = metrics.get("tcp_connect_mean_ms")
-        tcp_rate = metrics.get("network_model_rate_tcp_only_per_sec")
-        if mean_ms is not None and status_str == "OPEN":
-            lines.append(f"    TCP Latency    : {mean_ms:.2f} ms")
-            if proto_ms is not None:
-                setup_tag = "SSH Handshake" if is_ssh_handshake else "Post-TCP Greeting"
-                lines.append(f"    Protocol Setup : {proto_ms:.2f} ms ({setup_tag})")
-            if auth_dict is not None and auth_dict.get("host_key_status"):
-                hk = auth_dict.get("host_key_status")
-                if hk == "verified":
-                    lines.append("    Host Key       : VERIFIED (known_hosts)")
-                elif hk == "unverified_lab_opt_in":
-                    lines.append("    Host Key       : UNVERIFIED (Lab Opt-In --allow-untrusted-host-key)")
-                elif hk == "unverified_rejected":
-                    lines.append("    Host Key       : REJECTED (Unverified Host Key)")
-            if auth_ms is not None:
-                user_ms = auth_dict.get("user_cmd_mean_ms")
-                pass_ms = auth_dict.get("pass_cmd_mean_ms")
-                att_n = auth_dict.get("probe_attempt_count", rej_count)
-                if user_ms is not None and pass_ms is not None:
-                    lines.append(
-                        f"    Failed Auth    : {auth_ms:.2f} ms (USER: {user_ms:.2f} ms, PASS: {pass_ms:.2f} ms; {rej_count}/{att_n} probes)"
-                    )
-                elif proto_label == "SSH":
-                    lines.append(f"    Failed Auth    : {auth_ms:.2f} ms (SSH userauth; {rej_count}/{att_n} probes)")
-                elif proto_label == "FTP":
-                    lines.append(f"    Failed Auth    : {auth_ms:.2f} ms (FTP USER/PASS; {rej_count}/{att_n} probes)")
-                else:
-                    stage_tag = f"{proto_label} auth" if proto_label != "UNKNOWN" else "Unknown protocol auth"
-                    lines.append(f"    Failed Auth    : {auth_ms:.2f} ms ({stage_tag}; {rej_count}/{att_n} probes)")
-                k_exact = auth_dict.get("observed_server_reuse_limit")
-                k_lb = auth_dict.get("observed_server_reuse_lower_bound")
-                if k_exact is not None:
-                    lines.append(f"    Server Reuse   : {k_exact} attempts/conn (Confirmed Limit)")
-                elif k_lb is not None:
-                    lines.append(f"    Server Reuse   : At least {k_lb} attempts/conn (Lower Bound)")
-            elif auth_attempted or unsupported_proto:
-                lines.append(f"    Failed Auth    : UNAVAILABLE ({_single_line(auth_fail_reason)})")
-            lines.append(f"    Variability    : {_format_variability(metrics, auth_dict=auth_dict if auth_ms is not None else None)}")
-            if is_mode1 and tcp_rate is not None:
-                lines.append(f"    Estimated Rate : {tcp_rate:.2f} TCP connections/sec")
-                if setup_rate is not None:
-                    setup_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
-                    lines.append(f"    Setup Rate     : {setup_rate:.2f} sessions/sec (TCP + {setup_tag})")
-        else:
-            lines.append("    TCP Latency    : Unavailable")
-
+        # Collected across sections below, printed together at the end under
+        # ASSUMPTIONS & LIMITATIONS so every caveat lives in one place.
+        assumption_lines = []
         net_warn = _network_warning(metrics, auth_dict=auth_dict if auth_ms is not None else None)
-        if net_warn:
-            lines.append(f"    Warning        : {_single_line(net_warn)}")
 
-        # 3. ASSESSMENT PLANNING section (Modes 2 and 3 only)
-        if not is_mode1:
-            lines.append("")
-            lines.append("[+] ASSESSMENT PLANNING")
-            lines.append(f"    Mode           : {mode_name}")
+        if is_mode1:
+            # Mode 1 has no planning estimate to tier - Target + Network Conditions is the
+            # whole picture, so Network Conditions follows Target directly as before.
+            lines.extend(_build_network_conditions_lines(
+                metrics, status_str, proto_ms, is_ssh_handshake, auth_dict, auth_ms, rej_count,
+                proto_label, auth_attempted, unsupported_proto, auth_fail_reason, is_mode1, tcp_rate, setup_rate,
+            ))
+            if net_warn:
+                lines.append(f"    Warning        : {_single_line(net_warn)}")
+            continue
 
-            total_tries = metrics.get("total_tries")
-            cand_err = metrics.get("candidate_space_error")
-            tcp_cost_sec = metrics.get("tcp_only_time_cost_seconds")
-            setup_cost_sec = metrics.get("protocol_adjusted_time_cost_seconds")
-            full_cost_sec = metrics.get("full_workload_time_cost_seconds")
-            auth_rate_min = metrics.get("effective_auth_rate_per_min")
-            auth_rate_sec = metrics.get("effective_auth_rate_per_sec")
-            sugg_srv_min = metrics.get("suggested_service_auth_rate_per_min")
-            sugg_srv_sec = metrics.get("suggested_service_auth_rate_per_sec")
-            mean_srv_min = metrics.get("mean_service_auth_rate_per_min")
-            mean_srv_sec = metrics.get("mean_service_auth_rate_per_sec")
-            sugg_srv_time = metrics.get("suggested_service_workload_seconds")
-            mean_srv_time = metrics.get("mean_service_workload_seconds")
-            srv_range_min = metrics.get("service_target_range_min_seconds")
-            srv_range_max = metrics.get("service_target_range_max_seconds")
-            proj_min = metrics.get("sample_based_projection_range_min_seconds")
-            proj_max = metrics.get("sample_based_projection_range_max_seconds")
-            conf_level = metrics.get("measurement_confidence")
-            unverified = metrics.get("unverified_assumptions") or []
+        # ---- Modes 2/3: gather everything needed for the tiered sections ----
+        total_tries = metrics.get("total_tries")
+        cand_err = metrics.get("candidate_space_error")
+        tcp_cost_sec = metrics.get("tcp_only_time_cost_seconds")
+        setup_cost_sec = metrics.get("protocol_adjusted_time_cost_seconds")
+        full_cost_sec = metrics.get("full_workload_time_cost_seconds")
+        auth_rate_min = metrics.get("effective_auth_rate_per_min")
+        auth_rate_sec = metrics.get("effective_auth_rate_per_sec")
+        sugg_srv_min = metrics.get("suggested_service_auth_rate_per_min")
+        sugg_srv_sec = metrics.get("suggested_service_auth_rate_per_sec")
+        mean_srv_min = metrics.get("mean_service_auth_rate_per_min")
+        mean_srv_sec = metrics.get("mean_service_auth_rate_per_sec")
+        sugg_srv_time = metrics.get("suggested_service_workload_seconds")
+        mean_srv_time = metrics.get("mean_service_workload_seconds")
+        srv_range_min = metrics.get("service_target_range_min_seconds")
+        srv_range_max = metrics.get("service_target_range_max_seconds")
+        proj_min = metrics.get("sample_based_projection_range_min_seconds")
+        proj_max = metrics.get("sample_based_projection_range_max_seconds")
+        conf_level = metrics.get("measurement_confidence")
+        unverified = metrics.get("unverified_assumptions") or []
 
-            if total_tries is not None:
-                lines.append(f"    Workload       : {total_tries:,} candidates")
+        has_full_model = (
+            status_str == "OPEN" and total_tries is not None and tcp_rate is not None
+            and tcp_cost_sec is not None and full_cost_sec is not None
+            and auth_rate_min is not None and auth_rate_sec is not None
+        )
+        has_setup_only_model = (
+            status_str == "OPEN" and total_tries is not None and tcp_rate is not None
+            and tcp_cost_sec is not None and not has_full_model
+        )
 
-            if status_str == "OPEN" and total_tries is not None and tcp_rate is not None and tcp_cost_sec is not None:
-                if full_cost_sec is not None and auth_rate_min is not None and auth_rate_sec is not None:
-                    # Direct protocol-native metrics (Attempt Cost, Service Speed, Full Auth Time, Sample Range)
-                    n_tasks = suggested_tasks or 1
-                    k_eff = metrics.get("effective_attempts_per_connection", 1)
-                    est_conns = metrics.get("estimated_connections_required")
-                    attempt_cost_sec = (full_cost_sec / total_tries) if total_tries > 0 else (1.0 / auth_rate_sec)
-                    eff_srv_min = sugg_srv_min if sugg_srv_min is not None else auth_rate_min * n_tasks
-                    eff_srv_sec = sugg_srv_sec if sugg_srv_sec is not None else auth_rate_sec * n_tasks
-                    eff_mean_min = mean_srv_min if mean_srv_min is not None else auth_rate_min * n_tasks
-                    eff_mean_sec = mean_srv_sec if mean_srv_sec is not None else auth_rate_sec * n_tasks
-                    eff_srv_time = sugg_srv_time if sugg_srv_time is not None else (full_cost_sec / n_tasks)
-                    eff_mean_time = mean_srv_time if mean_srv_time is not None else (full_cost_sec / n_tasks)
-                    eff_r_min = srv_range_min if srv_range_min is not None else (proj_min / n_tasks if proj_min is not None else None)
-                    eff_r_max = srv_range_max if srv_range_max is not None else (proj_max / n_tasks if proj_max is not None else None)
+        summary_lines = ["", "[+] SUMMARY"]
+        primary_lines = ["", "[+] PRIMARY ESTIMATE", f"    Mode           : {mode_name}"]
+        secondary_lines = []
 
-                    lines.append(
-                        f"    Attempt Cost   : {attempt_cost_sec:.2f} sec/attempt "
-                        f"(K={k_eff} attempts/conn, {est_conns:,} connections)"
-                    )
-                    lines.append(
-                        f"    Concurrency    : {n_tasks} parallel sessions (Hydra: -t {n_tasks})"
-                    )
-                    if abs(eff_mean_min - eff_srv_min) > 0.05:
-                        lines.append(
-                            f"    Service Speed  : {eff_srv_min:.2f} - {eff_mean_min:.2f} attempts/min "
-                            f"({eff_srv_sec:.2f} - {eff_mean_sec:.2f} attempts/sec)"
-                        )
-                    else:
-                        lines.append(
-                            f"    Service Speed  : {eff_srv_min:.2f} attempts/min ({eff_srv_sec:.2f} attempts/sec)"
-                        )
-                    if abs(eff_srv_time - eff_mean_time) > 0.05:
-                        lines.append(
-                            f"    Full Auth Time : {_format_dual_sec_time(eff_mean_time)} to {_format_dual_sec_time(eff_srv_time)} "
-                            f"(K={k_eff}, {est_conns:,} connections)"
-                        )
-                    else:
-                        lines.append(
-                            f"    Full Auth Time : {_format_dual_sec_time(eff_srv_time)} (K={k_eff}, {est_conns:,} connections)"
-                        )
-                    if eff_r_min is not None and eff_r_max is not None:
-                        lines.append(
-                            f"    Sample Range   : {_format_dual_sec_time(eff_r_min)} to {_format_dual_sec_time(eff_r_max)} "
-                            "(Sample-Based Projection Range)"
-                        )
-                else:
-                    lines.append(f"    Estimated Rate : {tcp_rate:.2f} TCP connections/sec")
-                    if setup_rate is not None:
-                        setup_plan_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
-                        lines.append(f"    Setup Rate     : {setup_rate:.2f} sessions/sec (TCP + {setup_plan_tag})")
-                    lines.append(f"    Estimated Time : {_format_compact_time(tcp_cost_sec)}")
-                    if setup_cost_sec is not None:
-                        setup_plan_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
-                        lines.append(f"    Setup Time     : {_format_compact_time(setup_cost_sec)} (TCP + {setup_plan_tag})")
-                    if auth_attempted or unsupported_proto:
-                        lines.append(f"    Full Auth Time : UNAVAILABLE ({_single_line(auth_fail_reason)})")
+        if total_tries is not None:
+            primary_lines.append(f"    Workload       : {total_tries:,} candidates")
 
-                if conf_level:
-                    lines.append(f"    Confidence     : {_single_line(conf_level)}")
-                for note in unverified:
-                    lines.append(f"    Assumption     : {_single_line(note)}")
-                lines.append(f"    Planning       : {_format_planning_result(metrics)}")
-            elif cand_err:
-                lines.append("    Planning       : UNAVAILABLE (Wordlist unreadable)")
-                lines.append(f"    Warning        : {_single_line(cand_err)}")
+        if has_full_model:
+            n_tasks = suggested_tasks or 1
+            k_eff = metrics.get("effective_attempts_per_connection", 1)
+            est_conns = metrics.get("estimated_connections_required")
+            attempt_cost_sec = (full_cost_sec / total_tries) if total_tries > 0 else (1.0 / auth_rate_sec)
+            eff_srv_min = sugg_srv_min if sugg_srv_min is not None else auth_rate_min * n_tasks
+            eff_srv_sec = sugg_srv_sec if sugg_srv_sec is not None else auth_rate_sec * n_tasks
+            eff_mean_min = mean_srv_min if mean_srv_min is not None else auth_rate_min * n_tasks
+            eff_mean_sec = mean_srv_sec if mean_srv_sec is not None else auth_rate_sec * n_tasks
+            eff_srv_time = sugg_srv_time if sugg_srv_time is not None else (full_cost_sec / n_tasks)
+            eff_mean_time = mean_srv_time if mean_srv_time is not None else (full_cost_sec / n_tasks)
+            eff_r_min = srv_range_min if srv_range_min is not None else (proj_min / n_tasks if proj_min is not None else None)
+            eff_r_max = srv_range_max if srv_range_max is not None else (proj_max / n_tasks if proj_max is not None else None)
+
+            primary_lines.append(
+                f"    Attempt Cost   : {attempt_cost_sec:.2f} sec/attempt "
+                f"(K={k_eff} attempts/conn, {est_conns:,} connections)"
+            )
+            primary_lines.append(
+                f"    Concurrency    : {n_tasks} parallel sessions (Hydra: -t {n_tasks})"
+            )
+            if abs(eff_mean_min - eff_srv_min) > 0.05:
+                primary_lines.append(
+                    f"    Service Speed  : {eff_srv_min:.2f} - {eff_mean_min:.2f} attempts/min "
+                    f"({eff_srv_sec:.2f} - {eff_mean_sec:.2f} attempts/sec)"
+                )
             else:
-                lines.append("    Planning       : UNAVAILABLE (Target port not open)")
+                primary_lines.append(
+                    f"    Service Speed  : {eff_srv_min:.2f} attempts/min ({eff_srv_sec:.2f} attempts/sec)"
+                )
+            if abs(eff_srv_time - eff_mean_time) > 0.05:
+                full_auth_display = f"{_format_dual_sec_time(eff_mean_time)} to {_format_dual_sec_time(eff_srv_time)}"
+                primary_lines.append(
+                    f"    Full Auth Time : {full_auth_display} (K={k_eff}, {est_conns:,} connections)"
+                )
+            else:
+                full_auth_display = f"{_format_dual_sec_time(eff_srv_time)}"
+                primary_lines.append(
+                    f"    Full Auth Time : {full_auth_display} (K={k_eff}, {est_conns:,} connections)"
+                )
+
+            # SUMMARY mirrors the Full Auth Time range as the single trusted headline figure.
+            summary_lines.append(f"    Trusted Estimate : {full_auth_display}")
+            if conf_level:
+                summary_lines.append(f"    Confidence       : {_single_line(conf_level)}")
+            summary_lines.append(f"    Planning         : {_format_planning_result(metrics)}")
+
+            if eff_r_min is not None and eff_r_max is not None:
+                secondary_lines = [
+                    "",
+                    "[+] SECONDARY ESTIMATE (early-sample projection - not statistically validated)",
+                    f"    Sample Range   : {_format_dual_sec_time(eff_r_min)} to {_format_dual_sec_time(eff_r_max)}",
+                    "    Note           : Derived by scaling the min/max of the initial timing sample.",
+                    "                     This is not a confidence interval - treat the Primary Estimate",
+                    "                     above as the number to plan against.",
+                ]
+
+            for note in unverified:
+                assumption_lines.append(f"    - {_single_line(note)}")
+
+        elif has_setup_only_model:
+            primary_lines.append(f"    Estimated Rate : {tcp_rate:.2f} TCP connections/sec")
+            if setup_rate is not None:
+                setup_plan_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
+                primary_lines.append(f"    Setup Rate     : {setup_rate:.2f} sessions/sec (TCP + {setup_plan_tag})")
+            primary_lines.append(f"    Estimated Time : {_format_compact_time(tcp_cost_sec)}")
+            if setup_cost_sec is not None:
+                setup_plan_tag = "SSH Handshake" if is_ssh_handshake else "Protocol Greeting"
+                primary_lines.append(f"    Setup Time     : {_format_compact_time(setup_cost_sec)} (TCP + {setup_plan_tag})")
+            if auth_attempted or unsupported_proto:
+                primary_lines.append(f"    Full Auth Time : UNAVAILABLE ({_single_line(auth_fail_reason)})")
+
+            trusted_basis = setup_cost_sec if setup_cost_sec is not None else tcp_cost_sec
+            summary_lines.append(f"    Trusted Estimate : {_format_compact_time(trusted_basis)} (Full Auth Time unavailable)")
+            if conf_level:
+                summary_lines.append(f"    Confidence       : {_single_line(conf_level)}")
+            summary_lines.append(f"    Planning         : {_format_planning_result(metrics)}")
+
+            for note in unverified:
+                assumption_lines.append(f"    - {_single_line(note)}")
+
+        elif cand_err:
+            primary_lines.append("    Planning       : UNAVAILABLE (Wordlist unreadable)")
+            summary_lines.append("    Trusted Estimate : UNAVAILABLE (Wordlist unreadable)")
+            assumption_lines.append(f"    - {_single_line(cand_err)}")
+
+        else:
+            primary_lines.append("    Planning       : UNAVAILABLE (Target port not open)")
+            summary_lines.append("    Trusted Estimate : UNAVAILABLE (Target port not open)")
+
+        network_lines = _build_network_conditions_lines(
+            metrics, status_str, proto_ms, is_ssh_handshake, auth_dict, auth_ms, rej_count,
+            proto_label, auth_attempted, unsupported_proto, auth_fail_reason, is_mode1, tcp_rate, setup_rate,
+        )
+
+        if net_warn:
+            assumption_lines.append(f"    - Warning: {_single_line(net_warn)}")
+
+        lines.extend(summary_lines)
+        lines.extend(primary_lines)
+        lines.extend(secondary_lines)
+        lines.extend(network_lines)
+        if assumption_lines:
+            lines.append("")
+            lines.append("[+] ASSUMPTIONS & LIMITATIONS")
+            lines.extend(assumption_lines)
 
     if any_full_auth:
         proto_str = "/".join(full_auth_protocols) if full_auth_protocols else "protocol"
