@@ -712,7 +712,7 @@ def scan_target(target_ip, port, sample_size=None, pause_seconds=None, timeout_s
                             len(auth_sessions) >= 1
                             and auth_sessions[0].get("completed_attempts_in_connection", 0) >= 3
                         )
-                        if is_combined_active_cal and len(auth_sessions) < 2 and not sufficient_combined_cal:
+                        if is_combined_active_cal and len(auth_sessions) < config.MIN_AUTH_CALIBRATION_SESSIONS and not sufficient_combined_cal:
                             auth_sess = adapter.measure_auth_session(
                                 s,
                                 effective_user,
@@ -788,7 +788,7 @@ def scan_target(target_ip, port, sample_size=None, pause_seconds=None, timeout_s
                                     and adapter.supports_auth_calibration
                                     and not combines_setup
                                     and proto_out == "success"
-                                    and len(auth_sessions) < 2
+                                    and len(auth_sessions) < config.MIN_AUTH_CALIBRATION_SESSIONS
                                     and not calibration_halted
                                 ):
                                     auth_sess = adapter.measure_auth_session(

@@ -27,6 +27,13 @@ SSH_MAX_REUSE_PROBES = 7
 SSH_PROBE_REJECT_TOKEN = "nafat_calibration_reject_probe"
 
 
+# Minimum number of auth-calibration sessions (T_auth / reconnect-timing samples) to run
+# before halting early. Was hardcoded to 2, which is enough to confirm K_srv consistently
+# but too small a sample for reconnect-timing statistics when K_eff is low (many reconnects
+# expected in the real workload). Raised to 5 for a sturdier T_disc/T_auth distribution while
+# remaining a small, non-disruptive number of extra probe connections.
+MIN_AUTH_CALIBRATION_SESSIONS = 5
+
 # Default Pre-Assessment Planning Time Budget (in hours) for Network Time-Cost Comparison
 DEFAULT_PLANNING_BUDGET_HOURS = 72.0
 
