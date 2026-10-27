@@ -698,7 +698,7 @@ def save_reports(data, report_text, reports_dir=None):
     os.makedirs(target_dir, exist_ok=True)
 
     json_text = json.dumps(data, indent=4, allow_nan=False)
-    filename_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M%S")
+    filename_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     suffix = 0
     while True:
         stem = f"report_{filename_timestamp}" + (f"_{suffix}" if suffix else "")
