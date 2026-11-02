@@ -1,6 +1,5 @@
 # protocols/__init__.py
 # Protocol Adapter registry and built-in adapters (FTP, SSH) for NAFAT.
-
 from protocols.base import ProtocolAdapter, ProtocolRegistry
 from protocols.ftp_adapter import FTPAdapter, read_ftp_response
 from protocols.ssh_adapter import SSHAdapter
