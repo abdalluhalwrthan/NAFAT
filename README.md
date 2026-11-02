@@ -1,38 +1,110 @@
 # NAFAT — Network Authentication Feasibility Assessment Tool
 
-> *"Is this attack even worth my time — and does your defense actually stop it?"*
+> *Measure the network first, then decide.* NAFAT estimates **how long** an
+> authorized authentication assessment will take, and **what concurrency the
+> target can safely tolerate**, *before* the assessment is run — so testing a
+> critical service does not accidentally take it down.
 
-NAFAT is a CLI-based **Dual-Use** network security assessment framework for both Red and Blue Teams. Instead of guessing at attack speed or defense readiness, it **measures the live network first** — TCP handshake timing, protocol setup overhead, and (when explicitly authorized) real authentication-rejection timing — and only then computes a statistically grounded feasibility estimate. No step is based on an assumed or fixed constant; every number in the output traces back to something actually measured on the target, or is explicitly marked as an estimate rather than a validated result.
+NAFAT is a CLI tool that adds a **measurement-to-decision layer** to authorized
+security assessment. Instead of guessing at speed or runtime, it **measures the
+live service first** — TCP handshake timing, protocol setup overhead, and (when
+explicitly authorized) real authentication-rejection timing — and only then
+computes a statistically grounded feasibility estimate. No step is based on an
+assumed or fixed constant; every number in the output traces back to something
+actually measured on the target, or is explicitly marked as an estimate rather
+than a validated result.
+
+**NAFAT is a planning and safety layer, not an attack accelerator.** Its purpose
+is to keep authorized testing within the server's measured safe limits and to
+give both defenders and authorized testers an evidence-based plan — not to speed
+up credential guessing.
 
 ---
 
-## Dual-Use Framework
+## Dual-Use, Defense-First
+
+NAFAT is designed to serve both sides of an authorized engagement, with
+operational safety as the priority:
 
 | Team | Use Case |
 |------|----------|
-| 🔴 **Red Team** | Measured, protocol-aware speed and timing recommendations, capped at the target's actual observed capacity (never a guessed or maximal rate) |
-| 🔵 **Blue Team** | Objective evidence of how long an authentication workload would realistically take against the *current* configuration — usable as a before/after measurement when hardening a setting |
+| 🔵 **Blue Team / SOC** | Objective evidence of how long an authentication workload would realistically take against the *current* configuration — a before/after measurement when hardening a setting, and input for detection and rate-limit tuning |
+| 🔴 **Red Team (authorized)** | Measured, protocol-aware concurrency and timing guidance, capped at the target's actual observed capacity — so authorized testing stays within safe limits instead of using a guessed or maximal rate |
 
 ---
 
 ## Core Model
 
-NAFAT does not use a single fixed `RTT + overhead` formula. The feasibility model is built in layers, each backed by a real measurement:
+NAFAT does not use a single fixed `RTT + overhead` formula. The feasibility model
+is built in layers, each backed by a real measurement, and expressed through a
+transparent, reproducible workload model:
 
-1. **Adaptive TCP sampling** — multiple connection attempts (configurable, default 10, up to 20) establish a mean and standard deviation for raw network latency, not a single ping.
-2. **Protocol-aware setup timing** — for supported protocols (currently SSH and FTP), the post-TCP handshake/greeting is timed separately from raw TCP latency.
-3. **Authorized authentication calibration** *(opt-in only)* — when explicitly enabled, NAFAT measures real failed-authentication timing against the target using a synthetic, non-guessing probe credential. It never attempts real password guessing as part of measurement.
-4. **Server-side connection reuse detection (K_srv)** — NAFAT empirically discovers how many authentication attempts the target server actually permits per TCP connection (e.g. OpenSSH `MaxAuthTries`), rather than assuming a fixed value.
-5. **Conservative rate estimation** — the suggested attempt rate is `measured success rate ÷ (mean cycle time + 1 standard deviation)`, so the recommendation already accounts for observed timing variability instead of just the best case.
-6. **Protocol-aware concurrency** — the number of recommended parallel sessions is derived from measured timing stability (coefficient of variation) and, for SSH, from real constraints like cryptographic handshake cost and OpenSSH `MaxStartups`.
-7. **Hard physical cap** — the final suggested rate can never exceed the raw TCP capacity actually measured against the target.
+```latex
+M = \left\lceil \frac{N}{K} \right\rceil
+\qquad
+T_{full} = M\,(t + h) + (M - 1)\,d + N\,a
+```
+
+Where **N** = candidate count, **K** = observed usable attempts per connection,
+**M** = modeled connections, **t** = TCP setup, **h** = protocol setup,
+**d** = disconnect / reconnect cost, **a** = per-attempt rejection time (means, in
+seconds).
+
+The model is assembled from these measured layers:
+
+1. **Adaptive TCP sampling** — multiple connection attempts (default 10, up to 20)
+   establish a mean and standard deviation for raw network latency, not a single ping.
+2. **Protocol-aware setup timing** — for supported protocols (SSH and FTP), the
+   post-TCP handshake/greeting is timed separately from raw TCP latency.
+3. **Authorized authentication calibration** *(opt-in only)* — when explicitly
+   enabled, NAFAT measures real failed-authentication timing using a synthetic,
+   non-guessing probe credential. It never attempts real password guessing.
+4. **Server-side connection-reuse detection (K_srv)** — NAFAT empirically
+   discovers how many authentication attempts the target actually permits per TCP
+   connection (e.g. OpenSSH `MaxAuthTries`), rather than assuming a fixed value.
+5. **Conservative rate estimation** — the suggested attempt rate is
+   `measured success rate ÷ (mean cycle time + 1 standard deviation)`, so the
+   recommendation already accounts for observed timing variability.
+6. **Risk-aware concurrency recommendation** — beyond duration, NAFAT recommends a
+   safe concurrency level (`-t`) derived from measured timing stability
+   (coefficient of variation) and, for SSH, from real constraints like
+   cryptographic handshake cost and OpenSSH `MaxStartups`. *This is a risk-aware
+   speed suggestion, not a validated optimum.*
+7. **Hard physical cap** — the final suggested rate can never exceed the raw TCP
+   capacity actually measured against the target.
 
 The result is reported as two distinct estimates, never blended together:
 
-- **Primary Estimate** — the full statistical model above; this is the validated, defensible number.
-- **Secondary Estimate** — a rough projection extrapolated from the initial timing sample only. It is explicitly labeled as unvalidated and is never presented as a confidence interval.
+- **Primary Estimate — buffered planning estimate.** The full statistical model
+  above; the defensible number to plan against.
+- **Secondary Estimate — sample-derived range.** A rough projection from the
+  initial timing sample only. Explicitly labeled as unvalidated; **not** a
+  confidence interval.
 
-> No fallback or placeholder values. If a quantity was not measured, the field is reported as `UNAVAILABLE` with the reason — never a guessed or interpolated number.
+> No fallback or placeholder values. If a quantity was not measured, the field is
+> reported as `UNAVAILABLE` with the reason — never a guessed or interpolated number.
+
+---
+
+## Empirical Validation — Live-WAN Proof of Concept
+
+NAFAT was tested on a real wide-area path: a **NAFAT client in Riyadh** against a
+**cloud server in Frankfurt, Germany** (1 vCPU / 512 MB RAM), with a measured TCP
+connection-establishment time of ~95–108 ms. Across **9 live-WAN scenarios** over
+SSH and FTP, the observed runtime of an external execution tool (Hydra) fell
+**within NAFAT's pre-execution predicted bounds in all 9/9 cases**:
+
+| Condition | Primary (s) | Secondary (s) | Observed (s) | In range |
+|---|---|---|---|---|
+| FTP 100 | 86.13–91.64 | 73.24–93.47 | 90.09 | ✓ |
+| SSH pre-100 (K=5) | 202.48–241.62 | 132.57–224.96 | 180.85 | ✓ |
+| SSH post-100 (K=2) | 240.51–296.49 | 181.52–299.34 | 260.51 | ✓ |
+| *(… 6 more scenarios)* | | | | ✓ |
+
+> **Honest scope:** this containment is *descriptive* evidence from a proof of
+> concept — it is **not** a validated accuracy guarantee. NAFAT is a working
+> prototype; the result shows the measurement-first approach is viable, not that
+> every prediction is exact.
 
 ---
 
@@ -43,17 +115,16 @@ The result is reported as two distinct estimates, never blended together:
 - **Authorized Authentication Calibration** — optional, explicitly gated active probing (`--authorize-auth-probes`) that measures real failed-auth timing using a synthetic reject credential; never guesses real passwords
 - **Server Reuse-Limit Discovery (K_srv)** — empirically confirms (or lower-bounds) how many auth attempts a server allows per connection
 - **SSH Host-Key Verification** — verifies against `known_hosts` by default; unverified keys require a separate, explicit lab opt-in (`--allow-untrusted-host-key`)
-- **Statistically Grounded Speed & Concurrency Recommendations** — mean + standard-deviation buffering, success-rate discounting, and protocol-specific concurrency limits
-- **Primary / Secondary Estimate Separation** — the validated full model is never conflated with the rough early-sample projection
-- **Measurement Confidence Scoring** — each assessment is labeled by the quality/size of its underlying sample (e.g. `HIGH` / `MODERATE` / `LOW`)
-- **Three Operational Modes** — Network Baseline Diagnostic, Dictionary Planning, and Exhaustive Search (brute-force keyspace) Planning
+- **Risk-Aware Speed & Concurrency Recommendations** — mean + standard-deviation buffering, success-rate discounting, protocol-specific concurrency limits, and a measured hard cap
+- **Primary / Secondary Estimate Separation** — the buffered planning estimate is never conflated with the rough early-sample projection
+- **Measurement Confidence Scoring** — each assessment is labeled by the quality/size of its underlying sample (`HIGH` / `MODERATE` / `LOW`)
+- **Three Operational Modes** — Network Baseline Diagnostic, Dictionary Planning, and Exhaustive Search (keyspace) Planning
 - **Service Banner Grabbing** — identifies the running service/version per port where available
 - **Multi-Target, Multi-Port Scanning** — probe multiple IPs/hostnames and ports in a single session
 - **Time-Budget Planning** — compares the modeled workload time against a configurable network time budget (default 72h) and reports WITHIN/EXCEEDS
-- **Tiered, Dual-Format Reporting** — human-readable `.txt` (Summary → Primary Estimate → Secondary Estimate → Network Conditions → Assumptions & Limitations) and structured `.json`, both timestamped under `reports/`
+- **Tiered, Dual-Format Reporting** — human-readable `.txt` and structured `.json`, both timestamped under `reports/`
 - **Interactive CLI and Full argparse CLI** — run guided prompts or script it end-to-end with flags
-- **Input Validation** — IPv4/hostname validation, port range validation, re-prompt loops
-- **Safe Exit Handling** — clean `Ctrl+C` exit, no traceback spam
+- **Input Validation & Safe Exit** — IPv4/hostname and port validation, re-prompt loops, clean `Ctrl+C` handling
 
 ---
 
@@ -62,19 +133,19 @@ The result is reported as two distinct estimates, never blended together:
 ```
 NAFAT/
 ├── wordlists/
-│   └── AnyWordList.txt      # Default wordlist (you can supply any list you want)
-├── reports/                 # Auto-created — stores generated .txt/.json reports
+│   └── AnyWordList.txt       # Default wordlist (you can supply any list you want)
+├── reports/                  # Auto-created — stores generated .txt/.json reports
 ├── protocols/
 │   ├── __init__.py
 │   ├── base.py               # ProtocolAdapter interface shared by all protocol adapters
 │   ├── ssh_adapter.py        # SSH handshake timing, host-key verification, auth calibration
 │   └── ftp_adapter.py        # FTP greeting timing and auth calibration
 ├── config.py                 # Sampling, timeout, threshold, and path settings
-├── scanner.py                 # TCP probing, adaptive RTT sampling, banner grabbing
-├── calculator.py              # Statistical feasibility model (rate, concurrency, confidence)
-├── report.py                  # Tiered report formatting and TXT/JSON export
-├── NAFAT.py                   # CLI entry point (interactive + argparse)
-├── __init__.py                 # Package metadata (v1.2)
+├── scanner.py                # TCP probing, adaptive RTT sampling, banner grabbing
+├── calculator.py             # Statistical feasibility model (rate, concurrency, confidence)
+├── report.py                 # Tiered report formatting and TXT/JSON export
+├── NAFAT.py                  # CLI entry point (interactive + argparse)
+├── __init__.py               # Package metadata (v1.2)
 ├── README.md
 └── requirements.txt
 ```
@@ -130,19 +201,7 @@ Key flags:
 
 Run `python NAFAT.py --help` for the complete list.
 
-> Ports have no default — they must always be specified explicitly, in both modes.
-
----
-
-## Authorization Model
-
-Active authentication calibration (the only part of NAFAT that sends real authentication attempts, always using a synthetic non-guessing credential) is **off by default** and requires the operator to explicitly opt in:
-
-- In CLI mode, `--authorize-auth-probes` must be passed explicitly before any calibration probe is sent.
-- SSH host-key trust is gated separately: by default an unverified host key is rejected; `--allow-untrusted-host-key` is a distinct, explicit opt-in intended for isolated lab targets only.
-- Calibration never attempts real credential guessing — it measures the server's *rejection* timing using a fixed synthetic token, so no password list is ever used during measurement itself.
-
-NAFAT is built to be run only against systems the operator owns or has explicit written authorization to test — see Disclaimer below.
+> Ports have no default — they must always be specified explicitly.
 
 ---
 
@@ -165,15 +224,15 @@ Generated On       : 2026-10-21 19:52:17
     Confidence       : MODERATE
     Planning         : WITHIN 72h NETWORK BUDGET
 
-[+] PRIMARY ESTIMATE
+[+] PRIMARY ESTIMATE (buffered planning estimate)
     Mode           : Dictionary Planning
     Workload       : 1,001 candidates
     Attempt Cost   : 3.48 sec/attempt (K=5 attempts/conn, 201 connections)
-    Concurrency    : 2 parallel sessions (Hydra: -t 2)
+    Concurrency    : 2 parallel sessions (Hydra: -t 2)  [risk-aware suggestion, not a validated optimum]
     Service Speed  : 28.92 - 34.47 attempts/min (0.48 - 0.57 attempts/sec)
     Full Auth Time : 1742.36s (29.04 minutes) to 2077.04s (34.62 minutes) (K=5, 201 connections)
 
-[+] SECONDARY ESTIMATE (early-sample projection - not statistically validated)
+[+] SECONDARY ESTIMATE (sample-derived range - not statistically validated)
     Sample Range   : 1145.73s (19.10 minutes) to 1936.46s (32.27 minutes)
     Note           : Derived by scaling the min/max of the initial timing sample.
                      This is not a confidence interval - treat the Primary Estimate
@@ -226,42 +285,49 @@ Every run generates two timestamped files under `reports/`:
 
 ## Tested Against
 
+- **Live-WAN proof of concept:** Riyadh → cloud server in Frankfurt, Germany (see Empirical Validation above) — 9 scenarios, SSH (22) and FTP (21)
 - `scanme.nmap.org` — public test server provided by nmap.org
 - Metasploitable2 in an isolated VMware lab environment
 - A dedicated (non-shared-resource) SSH server, after VM-local testing showed CPU/virtualization-induced timing noise on long runs
-- Tested services: FTP (21), SSH (22)
 
 ---
 
-## Novelty
+## Where NAFAT Fits (vs. existing tools)
 
-As of the last review (October 2026), no single public tool was found combining all of the following in one framework:
+NAFAT is a **planning layer**, not a replacement for discovery or execution tools.
+As of the last review (October 2026), no single public tool was found combining
+all of the following in one framework:
 
-| Feature | NAFAT | nmap | Hydra | brtc |
-|---------|-------|------|-------|------|
-| Adaptive live RTT measurement (mean + SD, not single ping) | ✓ | ✗ | ✗ | ✗ |
-| Protocol-specific setup-time modeling | ✓ | ✗ | ✗ | ✗ |
-| Server-side connection-reuse limit discovery | ✓ | ✗ | ✗ | ✗ |
-| Statistically buffered, capped speed recommendation | ✓ | ✗ | ✗ | ✗ |
-| Validated vs. unvalidated estimate separation | ✓ | ✗ | ✗ | ✗ |
-| Banner Grabbing | ✓ | ✓ | ✗ | ✗ |
-| Multi-Target Scan | ✓ | ✓ | ✓ | ✗ |
-| TXT + JSON Report | ✓ | ~ | ✗ | ✓ |
-| Dual-Use (Red + Blue) framing | ✓ | ✗ | ✗ | ✗ |
+| Capability | NAFAT | nmap | Hydra |
+|---|:---:|:---:|:---:|
+| Core role | **Plan** (pre-workload) | Discover | Execute |
+| Adaptive live RTT measurement (mean + SD) | ✓ | ✗ | ✗ |
+| Protocol-specific setup-time modeling | ✓ | ✗ | ✗ |
+| Server-side connection-reuse (K) discovery | ✓ | ✗ | ✗ |
+| Risk-aware, capped speed/concurrency suggestion | ✓ | ✗ | ✗ |
+| Validated vs. unvalidated estimate separation | ✓ | ✗ | ✗ |
+| TXT + JSON report | ✓ | ~ | ✗ |
+
+> NAFAT adds a measurement-to-decision layer — it does not replace the scanner or
+> the execution tool.
 
 ---
 
 ## Roadmap
 
-**Already implemented (v1.2):** adaptive RTT calibration, SSH/FTP authentication timing, server reuse-limit (K_srv) discovery, confidence scoring, explicit authorization gating, tiered reporting.
+**Already implemented (v1.2):** adaptive RTT calibration, SSH/FTP authentication
+timing, server reuse-limit (K_srv) discovery, confidence scoring, explicit
+authorization gating, tiered reporting, live-WAN proof of concept.
 
-- **v1.3 (in progress)** — Rate-Limiting Threshold Discovery (cross-connection, Fail2Ban-style detection — distinct from the existing per-session K_srv), direct mapping of findings to NCA Essential Cybersecurity Controls (ECC) in the report output
-- **v1.5** — Before/after configuration-change verification mode, IPv6 support
-- **v2.0** — IDS/IDS-readiness blind-spot detector, risk scoring, HTML reports
-- **v3.0** — Web dashboard, REST API, SIEM integration
+- **v1.3 (in progress)** — cross-connection rate-limiting / lockout-threshold discovery (Fail2Ban-style, distinct from per-session K_srv); mapping of findings to NCA Essential Cybersecurity Controls (ECC) in the report output
+- **v1.5** — before/after configuration-change verification mode; IPv6 support
+- **v2.0** — web-protocol (HTTPS) and WAF-behavior modeling; SIEM/SOAR integration for Blue Team rate-limit tuning; HTML reports
 
 ---
 
 ## Disclaimer
 
-This tool is intended strictly for authorized penetration testing and educational purposes only. Do not use against systems you do not own or do not have explicit written permission to test. Active authentication calibration is opt-in by design (`--authorize-auth-probes`) and must only be enabled against authorized targets.
+This tool is intended strictly for authorized assessment and educational purposes
+only. Do not use it against systems you do not own or do not have explicit written
+permission to test. Active authentication calibration is opt-in by design
+(`--authorize-auth-probes`) and must only be enabled against authorized targets.
